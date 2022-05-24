@@ -34,7 +34,18 @@ async function train() {
 }
 
 async function moveSlider(labelTensor) {
-    // Continue 5/23/2022
+    const label = (await labelTensor.data())[0];
+    document.getElementById('console').textContent = label;
+
+    if (label == 2) {
+        return;
+    }
+
+    let delta = 0.1;
+
+    const prevValue = +document.getElementById('output').value;
+
+    document.getElementById('output').value = prevValue + (label === 0 ? -delta : delta);
 }
 
 function predictWord() {
@@ -69,8 +80,29 @@ function collect(label) {
 }
 
 function listen() {
-    // Continue 5/23/2022
+    if (recognizer.isListening()) {
+        recognizer.stopListening();
+        toggleButtons(true);
+        document.getElementById('listen').textContent = 'Listen';
+        return;
+    }
 
+    toggleButtons(false);
+    document.getElementById('listen').textContent = 'Stop';
+    document.getElementById('listen').disabled = false;
+
+    recognizer.listen(async ({ spectrogram: { frameSize, data } }) => {
+        const vals = normalize(data.subarray(-frameSize * NUM_FRAMES));
+        const input = tf.tensor(vals, [1, ...INPUT_SHAPE]);
+        const probs = model.predict(input);
+        const predLabel = probs.argMax(1);
+        await moveSlider(predLabel);
+        tf.dispose([input, probs, predLabel]);
+    }, {
+        overlapFactor: 0.999,
+        includeSpectrogram: true,
+        invokeCallbackOnNoiseAndUnknown: true,
+    });
 }
 
 function normalize(x) {
